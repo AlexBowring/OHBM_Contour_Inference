@@ -28,7 +28,9 @@ end
 % No 2D reshaping (except with Resid)
 
 Mean = mean(datamat,4);
-Std = std(datamat,0,4); 
+Std = reshape(...
+  mystd(reshape(datamat,[prod(Dim) nSubj]),StdBlk),...
+  Dim); 
 
 MuStdz = zeros(Dim);
 
@@ -38,8 +40,9 @@ fprintf('Standardized threshold %f used; equivalent to T threshold of %f\n',Thr,
 
 % Residuals - just mean centering 
 Resid = datamat - repmat(Mean,[1 1 1 nSubj]);
+Resid = bsxfun(@minus, datamat, Mean);
 Resid = reshape(Resid,[prod(Dim) nSubj]);
-Resid(Mask,:) = Resid(Mask,:)./repmat(Std(Mask),[1 nSubj]);
+Resid(Mask,:) = spdiags(1./reshape(Std, [prod(Dim) 1]), 0,prod(Dim),prod(Dim))*reshape(Resid(Mask,:),[prod(Dim) nSubj]);
 
 % Make the edge image
 MuStdzThrDil=imdilate(MuStdzThr,se);
@@ -49,14 +52,14 @@ MuStdzThrEdge=MuStdzThrEdge & Mask; % Not necessary since there's no data
                                     % outside the mask, but just to be safe
 
 for i=1:nBoot
-
-  SignFlips=randi(2,[nSubj,1])*2-3; 
-  % This impliments Eqn (6), the Wild Bootstrap mean 
-  Ystar = reshape(Resid.*repmat(SignFlips',[prod(Dim) 1]), [Dim nSubj]);
+  % This impliments the bootstrap method 
+  Ystar = datamat(:,:,:,randi(nSubj,[nSubj 1]));
+  Ystar = bsxfun(@minus,Ystar,Mean);
+  Ystar = spdiags(1./reshape(Std, [prod(Dim) 1]), 0,prod(Dim),prod(Dim))*reshape(Ystar,[prod(Dim) nSubj]);
+  Ystar = reshape(Ystar, [Dim nSubj]);
   MuStdzStar = sum(Ystar,4)/sqrt(nSubj);
 
-  supG(i)= max(abs(MuStdzStar(MuStdzThrEdge)))
-
+  supG(i)= max(abs(MuStdzStar(MuStdzThrEdge)))      
 end
 
 supGa95=prctile(supG,95)
@@ -65,42 +68,43 @@ LowerCon = MuStdz>=Thr-supGa95*tau;
 MiddleCon = MuStdzThr;
 UpperCon = MuStdz>=Thr+supGa95*tau;
 
-
-subplot(2,3,1)
-imagesc(MuStdz(:,:,40));axis image; colorbar
-subplot(2,3,2)
-hist(supG,50)
-abline('v',supGa95)
-subplot(2,3,3)
-imagesc(MuStdzThrEdge(:,:,40));axis image; colorbar
-subplot(2,3,4)
-imagesc(MuStdz(:,:,40)>=Thr-supGa95*tau);axis image; colorbar
-subplot(2,3,5)
-imagesc(MuStdzThr(:,:,40));axis image; colorbar
-subplot(2,3,6)
-imagesc(MuStdz(:,:,40)>=Thr+supGa95*tau);axis image; colorbar
-
 cd(Out);
 Vout=VY(1); % clone the first image's handle
-Vout.fname = 'LowerConfidenceInterval.nii'; % crucially, change the file name!
-Vout.descrip = 'Lower confidence interval!'; % Actually, put something more
+Vout.fname = 'StandardizedLowerConfidenceInterval.nii'; % crucially, change the file name!
+Vout.descrip = 'Standardized Lower confidence interval!'; % Actually, put something more
                                         % informative here
 
 Vout=spm_write_vol(Vout,LowerCon);
 
 Vout=VY(1); % clone the first image's handle
-Vout.fname = 'MiddleConfidenceInterval.nii'; % crucially, change the file name!
-Vout.descrip = 'Middle confidence interval!'; % Actually, put something more
+Vout.fname = 'StandardizedMiddleConfidenceInterval.nii'; % crucially, change the file name!
+Vout.descrip = 'Standardized Middle confidence interval!'; % Actually, put something more
                                         % informative here
 
 Vout=spm_write_vol(Vout,MiddleCon);
 
 Vout=VY(1); % clone the first image's handle
-Vout.fname = 'UpperConfidenceInterval.nii'; % crucially, change the file name!
-Vout.descrip = 'Upper confidence interval!'; % Actually, put something more
+Vout.fname = 'StandardizedUpperConfidenceInterval.nii'; % crucially, change the file name!
+Vout.descrip = 'Standardized Upper confidence interval!'; % Actually, put something more
                                         % informative here
 
 Vout=spm_write_vol(Vout,UpperCon);
 
 end
 
+function y = mystd(x,blk)
+% Hopefully faster, more memory efficient std - Only works for 2D arrays,
+% works *across* rows (not down columns)
+n = size(x,2);
+nRow=size(x,1);
+nBlk=nRow/blk;
+y = zeros(nRow,1);
+I0 = 1:blk;
+for i=1:nBlk
+  I = I0+(i-1)*blk;
+  xbar = sum(x(I,:), 2) ./ n;
+  xc = bsxfun(@minus, x(I,:), xbar);
+  y(I) = sqrt(sum(xc.^2, 2) ./ (n-1));
+end
+
+return

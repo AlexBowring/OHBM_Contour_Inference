@@ -1,4 +1,6 @@
-OutBase='/home/essicd/storage/data/ContourInf/HCP80'
+addpath(genpath('/storage/maullz/OHBM_Contour_Inference/'))
+
+OutBase='/storage/maullz/OHBM_Contour_Inference/data'
 HCP='/home/essicd/storage/data/HCP/Unrelated_80/RESULTS'
 
 Dirs=dir([HCP '/stats_*']);

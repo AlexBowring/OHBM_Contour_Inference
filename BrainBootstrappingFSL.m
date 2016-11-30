@@ -15,6 +15,8 @@ Mask=spm_read_vols(VM)>0;
 
 nSubj=length(VY);
 Dim=VY(1).dim;
+StdBlk = prod(Dim([1 2])/2); % How to block up data when computing Stdev (to
+                          % save memory)
 datamat=zeros([Dim nSubj]);
 
 tau = 1/sqrt(nSubj);
@@ -28,9 +30,7 @@ end
 % No 2D reshaping (except with Resid)
 
 Mean = mean(datamat,4);
-Std = reshape(...
-  mystd(reshape(datamat,[prod(Dim) nSubj]),StdBlk),...
-  Dim); 
+Std = std(datamat,0,4);
 
 MuStdz = zeros(Dim);
 
@@ -39,10 +39,9 @@ MuStdzThr = MuStdz >= Thr;
 fprintf('Standardized threshold %f used; equivalent to T threshold of %f\n',Thr,Thr*sqrt(nSubj));
 
 % Residuals - just mean centering 
-Resid = datamat - repmat(Mean,[1 1 1 nSubj]);
 Resid = bsxfun(@minus, datamat, Mean);
 Resid = reshape(Resid,[prod(Dim) nSubj]);
-Resid(Mask,:) = spdiags(1./reshape(Std, [prod(Dim) 1]), 0,prod(Dim),prod(Dim))*reshape(Resid(Mask,:),[prod(Dim) nSubj]);
+Resid(Mask,:) = Resid(Mask,:)./repmat(Std(Mask),[1 nSubj]);
 
 % Make the edge image
 MuStdzThrDil=imdilate(MuStdzThr,se);
@@ -55,7 +54,8 @@ for i=1:nBoot
   % This impliments the bootstrap method 
   Ystar = datamat(:,:,:,randi(nSubj,[nSubj 1]));
   Ystar = bsxfun(@minus,Ystar,Mean);
-  Ystar = spdiags(1./reshape(Std, [prod(Dim) 1]), 0,prod(Dim),prod(Dim))*reshape(Ystar,[prod(Dim) nSubj]);
+  Ystar = reshape(Ystar,[prod(Dim) nSubj]);
+  Ystar(Mask,:) = Ystar(Mask,:)./repmat(Std(Mask),[1 nSubj]);
   Ystar = reshape(Ystar, [Dim nSubj]);
   MuStdzStar = sum(Ystar,4)/sqrt(nSubj);
 
@@ -108,3 +108,4 @@ for i=1:nBlk
 end
 
 return
+end

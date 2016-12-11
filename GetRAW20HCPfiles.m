@@ -1,15 +1,15 @@
 addpath(genpath('/storage/maullz/OHBM_Contour_Inference/'))
 
 OutBase='/storage/maullz/OHBM_Contour_Inference/data'
-HCP='/home/essicd/storage/data/HCP/Unrelated_80/RESULTS'
+HCP='/home/essicd/storage/data/HCP/Unrelated_80/RESULTS20'
 
 Dirs=dir([HCP '/stats_*']);
 
-for i=14:length(Dirs)
+for i=1:3
   Src=Dirs(i);
   [~,OutNm]=fileparts(Src.name);
   Out=fullfile(OutBase,OutNm);
   mkdir(Out);
   String=[HCP '/' Src.name '/'];
-  BrainBootstrappingFSL(String, Out);
+  RAW20BrainBootstrappingFSL(String, Out);
 end
